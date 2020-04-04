@@ -19,6 +19,7 @@ import coulomb.binprefix._
 import coulomb.us._
 import coulomb.temp._
 
+
 import coulomb.validators.CoulombValidators._
 
 object QuantityTests extends TestSuite {

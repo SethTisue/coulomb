@@ -212,13 +212,64 @@ object Quantity {
     new Quantity[N2, U2](uc.vcnv(q1.value))
 }
 
-object refined {
+trait RefinedP2 {
+  import spire.math.{ Rational, ConvertableFrom, ConvertableTo }
   import spire.algebra._
   import eu.timepit.refined._, eu.timepit.refined.api._, eu.timepit.refined.numeric._
   import coulomb.unitops._
 
-  def test[V, P](v: V)(implicit vvp: Validate[V, P]): Refined[V, P] =
-    refineV[P](v).toOption.get
+  implicit def valueToRefinedPolicy[V1, U1, V2, P2, U2](implicit
+      enable: coulomb.refined.policy.EnableUnsoundRefinedConversions,
+      cf1: ConvertableFrom[V1],
+      ct2: ConvertableTo[V2],
+      vv2: Validate[V2, P2]): UnitConverterPolicy[V1, U1, Refined[V2, P2], U2] =
+    new UnitConverterPolicy[V1, U1, Refined[V2, P2], U2] {
+      def convert(v: V1, cu: ConvertableUnits[U1, U2]): Refined[V2, P2] = {
+        val v2 = ct2.fromType[Rational](cf1.toType[Rational](v) * cu.coef)
+        refineV[P2](v2).toOption.get
+      }
+    }
+
+  implicit def refinedToValuePolicy[V1, P1, U1, V2, U2](implicit
+      cf1: ConvertableFrom[V1],
+      ct2: ConvertableTo[V2]): UnitConverterPolicy[Refined[V1, P1], U1, V2, U2] =
+    new UnitConverterPolicy[Refined[V1, P1], U1, V2, U2] {
+      def convert(v: Refined[V1, P1], cu: ConvertableUnits[U1, U2]): V2 = {
+        ct2.fromType[Rational](cf1.toType[Rational](v.value) * cu.coef)
+      }
+    }
+}
+trait RefinedP1 extends RefinedP2 {
+  import spire.math.{ Rational, ConvertableFrom, ConvertableTo }
+  import spire.algebra._
+  import eu.timepit.refined._, eu.timepit.refined.api._, eu.timepit.refined.numeric._
+  import coulomb.unitops._
+
+  implicit def refinedToRefinedPolicy[V1, P1, U1, V2, P2, U2](implicit
+      enable: coulomb.refined.policy.EnableUnsoundRefinedConversions,
+      cf1: ConvertableFrom[V1],
+      ct2: ConvertableTo[V2],
+      vv2: Validate[V2, P2]): UnitConverterPolicy[Refined[V1, P1], U1, Refined[V2, P2], U2] =
+    new UnitConverterPolicy[Refined[V1, P1], U1, Refined[V2, P2], U2] {
+      def convert(v: Refined[V1, P1], cu: ConvertableUnits[U1, U2]): Refined[V2, P2] = {
+        val v2 = ct2.fromType[Rational](cf1.toType[Rational](v.value) * cu.coef)
+        refineV[P2](v2).toOption.get
+      }
+    }
+}
+object refined extends RefinedP1 {
+  import spire.math.{ Rational, ConvertableFrom, ConvertableTo }
+  import spire.algebra._
+  import eu.timepit.refined._, eu.timepit.refined.api._, eu.timepit.refined.numeric._
+  import coulomb.unitops._
+
+  object policy {
+    trait EnableUnsoundRefinedConversions
+    object unsoundRefinedConversions {
+      implicit object enableUnsoundRefinedConversions extends
+          EnableUnsoundRefinedConversions {}
+    }
+  }
 
   implicit def refinedPosAdd[V](implicit
       vv: Validate[V, Positive],
@@ -278,4 +329,41 @@ object refined {
       def times(x: Refined[V, NonNegative], y: Refined[V, NonNegative]): Refined[V, NonNegative] =
         refineV[NonNegative](gv.times(x.value, y.value)).toOption.get
     }
+
+  implicit def refinedPosPosPolicy[V1, U1, V2, U2](implicit
+      cf1: ConvertableFrom[V1],
+      ct2: ConvertableTo[V2],
+      vv2: Validate[V2, Positive]): UnitConverterPolicy[Refined[V1, Positive], U1, Refined[V2, Positive], U2] =
+    new UnitConverterPolicy[Refined[V1, Positive], U1, Refined[V2, Positive], U2] {
+      def convert(v: Refined[V1, Positive], cu: ConvertableUnits[U1, U2]): Refined[V2, Positive] = {
+        val v2 = ct2.fromType[Rational](cf1.toType[Rational](v.value) * cu.coef)
+        refineV[Positive](v2).toOption.get
+      }
+    }
+
+  implicit def refinedPosNonNegPolicy[V1, U1, V2, U2](implicit
+      cf1: ConvertableFrom[V1],
+      ct2: ConvertableTo[V2],
+      vv2: Validate[V2, NonNegative]): UnitConverterPolicy[Refined[V1, Positive], U1, Refined[V2, NonNegative], U2] =
+    new UnitConverterPolicy[Refined[V1, Positive], U1, Refined[V2, NonNegative], U2] {
+      def convert(v: Refined[V1, Positive], cu: ConvertableUnits[U1, U2]): Refined[V2, NonNegative] = {
+        val v2 = ct2.fromType[Rational](cf1.toType[Rational](v.value) * cu.coef)
+        refineV[NonNegative](v2).toOption.get
+      }
+    }
+
+  implicit def refinedNonNegNonNegPolicy[V1, U1, V2, U2](implicit
+      cf1: ConvertableFrom[V1],
+      ct2: ConvertableTo[V2],
+      vv2: Validate[V2, NonNegative]): UnitConverterPolicy[Refined[V1, NonNegative], U1, Refined[V2, NonNegative], U2] =
+    new UnitConverterPolicy[Refined[V1, NonNegative], U1, Refined[V2, NonNegative], U2] {
+      def convert(v: Refined[V1, NonNegative], cu: ConvertableUnits[U1, U2]): Refined[V2, NonNegative] = {
+        val v2 = ct2.fromType[Rational](cf1.toType[Rational](v.value) * cu.coef)
+        refineV[NonNegative](v2).toOption.get
+      }
+    }
+
+  // are these lower priority?
+  // todo: (V1, U1) => (P[V2], U2)  // not sound
+  // todo: (P[V1], U1) => (V2, U2)  // sound
 }
