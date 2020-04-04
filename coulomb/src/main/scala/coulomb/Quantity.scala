@@ -211,3 +211,71 @@ object Quantity {
       uc: UnitConverter[N1, U1, N2, U2]): Quantity[N2, U2] =
     new Quantity[N2, U2](uc.vcnv(q1.value))
 }
+
+object refined {
+  import spire.algebra._
+  import eu.timepit.refined._, eu.timepit.refined.api._, eu.timepit.refined.numeric._
+  import coulomb.unitops._
+
+  def test[V, P](v: V)(implicit vvp: Validate[V, P]): Refined[V, P] =
+    refineV[P](v).toOption.get
+
+  implicit def refinedPosAdd[V](implicit
+      vv: Validate[V, Positive],
+      gv: AdditiveSemigroup[V]): AdditiveSemigroup[Refined[V, Positive]] =
+    new AdditiveSemigroup[Refined[V, Positive]] {
+      def plus(x: Refined[V, Positive], y: Refined[V, Positive]): Refined[V, Positive] =
+        refineV[Positive](gv.plus(x.value, y.value)).toOption.get
+    }
+
+  implicit def refinedNonNegAdd[V](implicit
+      vv: Validate[V, NonNegative],
+      gv: AdditiveMonoid[V]): AdditiveMonoid[Refined[V, NonNegative]] =
+    new AdditiveMonoid[Refined[V, NonNegative]] {
+      val zero: Refined[V, NonNegative] = refineV[NonNegative](gv.zero).toOption.get
+      def plus(x: Refined[V, NonNegative], y: Refined[V, NonNegative]): Refined[V, NonNegative] =
+        refineV[NonNegative](gv.plus(x.value, y.value)).toOption.get
+    }
+
+  implicit def refinedPosMul[V](implicit
+      vv: Validate[V, Positive],
+      gv: MultiplicativeGroup[V]): MultiplicativeGroup[Refined[V, Positive]] =
+    new MultiplicativeGroup[Refined[V, Positive]] {
+      val one: Refined[V, Positive] = refineV[Positive](gv.one).toOption.get
+      def times(x: Refined[V, Positive], y: Refined[V, Positive]): Refined[V, Positive] =
+        refineV[Positive](gv.times(x.value, y.value)).toOption.get
+      def div(x: Refined[V, Positive], y: Refined[V, Positive]): Refined[V, Positive] =
+        refineV[Positive](gv.div(x.value, y.value)).toOption.get
+    }
+
+  implicit def refinedNonNegMul[V](implicit
+      vv: Validate[V, NonNegative],
+      gv: MultiplicativeGroup[V]): MultiplicativeGroup[Refined[V, NonNegative]] =
+    new MultiplicativeGroup[Refined[V, NonNegative]] {
+      val one: Refined[V, NonNegative] = refineV[NonNegative](gv.one).toOption.get
+      def times(x: Refined[V, NonNegative], y: Refined[V, NonNegative]): Refined[V, NonNegative] =
+        refineV[NonNegative](gv.times(x.value, y.value)).toOption.get
+      def div(x: Refined[V, NonNegative], y: Refined[V, NonNegative]): Refined[V, NonNegative] =
+        refineV[NonNegative](gv.div(x.value, y.value)).toOption.get
+    }
+
+  implicit def refinedPosMulMonoid[V](implicit
+      vv: Validate[V, Positive],
+      noMG: infra.NoImplicit[MultiplicativeGroup[V]],
+      gv: MultiplicativeMonoid[V]): MultiplicativeMonoid[Refined[V, Positive]] =
+    new MultiplicativeMonoid[Refined[V, Positive]] {
+      val one: Refined[V, Positive] = refineV[Positive](gv.one).toOption.get
+      def times(x: Refined[V, Positive], y: Refined[V, Positive]): Refined[V, Positive] =
+        refineV[Positive](gv.times(x.value, y.value)).toOption.get
+    }
+
+  implicit def refinedNonNegMulMonoid[V](implicit
+      vv: Validate[V, NonNegative],
+      noMG: infra.NoImplicit[MultiplicativeGroup[V]],
+      gv: MultiplicativeMonoid[V]): MultiplicativeMonoid[Refined[V, NonNegative]] =
+    new MultiplicativeMonoid[Refined[V, NonNegative]] {
+      val one: Refined[V, NonNegative] = refineV[NonNegative](gv.one).toOption.get
+      def times(x: Refined[V, NonNegative], y: Refined[V, NonNegative]): Refined[V, NonNegative] =
+        refineV[NonNegative](gv.times(x.value, y.value)).toOption.get
+    }
+}
