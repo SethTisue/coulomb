@@ -23,16 +23,30 @@ import coulomb.infra.NoImplicit
 package coulomb {
 
 package refined.infra {
+  import coulomb.refined.policy._
+  import coulomb.refined.CoulombRefinedException
+
+  object enhance {
+    implicit class EnhanceWithToRefined[V](v: V) {
+      @inline def toRefined[P](implicit vvp: Validate[V, P]) = refineV[P](v) match {
+        case Left(err) => throw CoulombRefinedException(err)
+        case Right(ref) => ref
+      }
+    }
+  }
+
+  import enhance._
+
   trait CoulombRefinedP2 {
     implicit def valueToRefinedPolicy[V1, U1, V2, P2, U2](implicit
-        enable: coulomb.refined.policy.EnableUnsoundRefinedConversions,
+        enable: EnableUnsoundRefinedConversions,
         cf1: ConvertableFrom[V1],
         ct2: ConvertableTo[V2],
         vv2: Validate[V2, P2]): UnitConverterPolicy[V1, U1, Refined[V2, P2], U2] =
       new UnitConverterPolicy[V1, U1, Refined[V2, P2], U2] {
         def convert(v: V1, cu: ConvertableUnits[U1, U2]): Refined[V2, P2] = {
           val v2 = ct2.fromType[Rational](cf1.toType[Rational](v) * cu.coef)
-          refineV[P2](v2).toOption.get
+          v2.toRefined[P2]
         }
       }
 
@@ -45,22 +59,25 @@ package refined.infra {
         }
       }
   }
+
   trait CoulombRefinedP1 extends CoulombRefinedP2 {
     implicit def refinedToRefinedPolicy[V1, P1, U1, V2, P2, U2](implicit
-        enable: coulomb.refined.policy.EnableUnsoundRefinedConversions,
+        enable: EnableUnsoundRefinedConversions,
         cf1: ConvertableFrom[V1],
         ct2: ConvertableTo[V2],
         vv2: Validate[V2, P2]): UnitConverterPolicy[Refined[V1, P1], U1, Refined[V2, P2], U2] =
       new UnitConverterPolicy[Refined[V1, P1], U1, Refined[V2, P2], U2] {
         def convert(v: Refined[V1, P1], cu: ConvertableUnits[U1, U2]): Refined[V2, P2] = {
           val v2 = ct2.fromType[Rational](cf1.toType[Rational](v.value) * cu.coef)
-          refineV[P2](v2).toOption.get
+          v2.toRefined[P2]
         }
       }
   }
 }
 
 package object refined extends coulomb.refined.infra.CoulombRefinedP1 {
+  import coulomb.refined.infra.enhance._
+
   object policy {
     trait EnableUnsoundRefinedConversions
     object unsoundRefinedConversions {
@@ -69,43 +86,45 @@ package object refined extends coulomb.refined.infra.CoulombRefinedP1 {
     }
   }
 
+  case class CoulombRefinedException(msg: String) extends Exception(msg)
+
   implicit def refinedPosAdd[V](implicit
       vv: Validate[V, Positive],
       gv: AdditiveSemigroup[V]): AdditiveSemigroup[Refined[V, Positive]] =
     new AdditiveSemigroup[Refined[V, Positive]] {
       def plus(x: Refined[V, Positive], y: Refined[V, Positive]): Refined[V, Positive] =
-        refineV[Positive](gv.plus(x.value, y.value)).toOption.get
+        gv.plus(x.value, y.value).toRefined[Positive]
     }
 
   implicit def refinedNonNegAdd[V](implicit
       vv: Validate[V, NonNegative],
       gv: AdditiveMonoid[V]): AdditiveMonoid[Refined[V, NonNegative]] =
     new AdditiveMonoid[Refined[V, NonNegative]] {
-      val zero: Refined[V, NonNegative] = refineV[NonNegative](gv.zero).toOption.get
+      val zero: Refined[V, NonNegative] = gv.zero.toRefined[NonNegative]
       def plus(x: Refined[V, NonNegative], y: Refined[V, NonNegative]): Refined[V, NonNegative] =
-        refineV[NonNegative](gv.plus(x.value, y.value)).toOption.get
+        gv.plus(x.value, y.value).toRefined[NonNegative]
     }
 
   implicit def refinedPosMul[V](implicit
       vv: Validate[V, Positive],
       gv: MultiplicativeGroup[V]): MultiplicativeGroup[Refined[V, Positive]] =
     new MultiplicativeGroup[Refined[V, Positive]] {
-      val one: Refined[V, Positive] = refineV[Positive](gv.one).toOption.get
+      val one: Refined[V, Positive] = gv.one.toRefined[Positive]
       def times(x: Refined[V, Positive], y: Refined[V, Positive]): Refined[V, Positive] =
-        refineV[Positive](gv.times(x.value, y.value)).toOption.get
+        gv.times(x.value, y.value).toRefined[Positive]
       def div(x: Refined[V, Positive], y: Refined[V, Positive]): Refined[V, Positive] =
-        refineV[Positive](gv.div(x.value, y.value)).toOption.get
+        gv.div(x.value, y.value).toRefined[Positive]
     }
 
   implicit def refinedNonNegMul[V](implicit
       vv: Validate[V, NonNegative],
       gv: MultiplicativeGroup[V]): MultiplicativeGroup[Refined[V, NonNegative]] =
     new MultiplicativeGroup[Refined[V, NonNegative]] {
-      val one: Refined[V, NonNegative] = refineV[NonNegative](gv.one).toOption.get
+      val one: Refined[V, NonNegative] = gv.one.toRefined[NonNegative]
       def times(x: Refined[V, NonNegative], y: Refined[V, NonNegative]): Refined[V, NonNegative] =
-        refineV[NonNegative](gv.times(x.value, y.value)).toOption.get
+        gv.times(x.value, y.value).toRefined[NonNegative]
       def div(x: Refined[V, NonNegative], y: Refined[V, NonNegative]): Refined[V, NonNegative] =
-        refineV[NonNegative](gv.div(x.value, y.value)).toOption.get
+        gv.div(x.value, y.value).toRefined[NonNegative]
     }
 
   implicit def refinedPosMulMonoid[V](implicit
@@ -113,9 +132,9 @@ package object refined extends coulomb.refined.infra.CoulombRefinedP1 {
       noMG: NoImplicit[MultiplicativeGroup[V]],
       gv: MultiplicativeMonoid[V]): MultiplicativeMonoid[Refined[V, Positive]] =
     new MultiplicativeMonoid[Refined[V, Positive]] {
-      val one: Refined[V, Positive] = refineV[Positive](gv.one).toOption.get
+      val one: Refined[V, Positive] = gv.one.toRefined[Positive]
       def times(x: Refined[V, Positive], y: Refined[V, Positive]): Refined[V, Positive] =
-        refineV[Positive](gv.times(x.value, y.value)).toOption.get
+        gv.times(x.value, y.value).toRefined[Positive]
     }
 
   implicit def refinedNonNegMulMonoid[V](implicit
@@ -123,9 +142,9 @@ package object refined extends coulomb.refined.infra.CoulombRefinedP1 {
       noMG: NoImplicit[MultiplicativeGroup[V]],
       gv: MultiplicativeMonoid[V]): MultiplicativeMonoid[Refined[V, NonNegative]] =
     new MultiplicativeMonoid[Refined[V, NonNegative]] {
-      val one: Refined[V, NonNegative] = refineV[NonNegative](gv.one).toOption.get
+      val one: Refined[V, NonNegative] = gv.one.toRefined[NonNegative]
       def times(x: Refined[V, NonNegative], y: Refined[V, NonNegative]): Refined[V, NonNegative] =
-        refineV[NonNegative](gv.times(x.value, y.value)).toOption.get
+        gv.times(x.value, y.value).toRefined[NonNegative]
     }
 
   implicit def refinedPosPosPolicy[V1, U1, V2, U2](implicit
@@ -135,7 +154,7 @@ package object refined extends coulomb.refined.infra.CoulombRefinedP1 {
     new UnitConverterPolicy[Refined[V1, Positive], U1, Refined[V2, Positive], U2] {
       def convert(v: Refined[V1, Positive], cu: ConvertableUnits[U1, U2]): Refined[V2, Positive] = {
         val v2 = ct2.fromType[Rational](cf1.toType[Rational](v.value) * cu.coef)
-        refineV[Positive](v2).toOption.get
+        v2.toRefined[Positive]
       }
     }
 
@@ -146,7 +165,7 @@ package object refined extends coulomb.refined.infra.CoulombRefinedP1 {
     new UnitConverterPolicy[Refined[V1, Positive], U1, Refined[V2, NonNegative], U2] {
       def convert(v: Refined[V1, Positive], cu: ConvertableUnits[U1, U2]): Refined[V2, NonNegative] = {
         val v2 = ct2.fromType[Rational](cf1.toType[Rational](v.value) * cu.coef)
-        refineV[NonNegative](v2).toOption.get
+        v2.toRefined[NonNegative]
       }
     }
 
@@ -157,7 +176,7 @@ package object refined extends coulomb.refined.infra.CoulombRefinedP1 {
     new UnitConverterPolicy[Refined[V1, NonNegative], U1, Refined[V2, NonNegative], U2] {
       def convert(v: Refined[V1, NonNegative], cu: ConvertableUnits[U1, U2]): Refined[V2, NonNegative] = {
         val v2 = ct2.fromType[Rational](cf1.toType[Rational](v.value) * cu.coef)
-        refineV[NonNegative](v2).toOption.get
+        v2.toRefined[NonNegative]
       }
     }
 }
