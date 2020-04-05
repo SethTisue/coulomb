@@ -127,7 +127,7 @@ lazy val coulomb_refined = (project in file("coulomb-refined"))
   .settings(libraryDependencies ++= coulombRefinedDeps)
 
 def coulombPureConfigDeps = Seq(
-  // "com.github.pureconfig" %% "pureconfig" % "0.12.3" % Provided
+  "com.github.pureconfig" %% "pureconfig" % "0.12.3" % Provided,
   "eu.timepit" %% "refined-pureconfig" % "0.9.13" % Provided
 )
 
