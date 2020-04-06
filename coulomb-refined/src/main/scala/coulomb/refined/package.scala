@@ -15,8 +15,11 @@ limitations under the License.
 */
 
 import spire.math.{ Rational, ConvertableFrom, ConvertableTo }
+import spire.util.Opt
 import spire.algebra._
+
 import eu.timepit.refined._, eu.timepit.refined.api._, eu.timepit.refined.numeric._
+
 import coulomb.unitops._
 import coulomb.infra.NoImplicit
 
@@ -37,7 +40,7 @@ package refined.infra {
 
   import enhance._
 
-  trait CoulombRefinedP2 {
+  trait CoulombRefinedP1 {
     implicit def valueToRefinedPolicy[V1, U1, V2, P2, U2](implicit
         enable: EnableUnsoundRefinedConversions,
         cf1: ConvertableFrom[V1],
@@ -59,20 +62,6 @@ package refined.infra {
         }
       }
   }
-
-  trait CoulombRefinedP1 extends CoulombRefinedP2 {
-    implicit def refinedToRefinedPolicy[V1, P1, U1, V2, P2, U2](implicit
-        enable: EnableUnsoundRefinedConversions,
-        cf1: ConvertableFrom[V1],
-        ct2: ConvertableTo[V2],
-        vv2: Validate[V2, P2]): UnitConverterPolicy[Refined[V1, P1], U1, Refined[V2, P2], U2] =
-      new UnitConverterPolicy[Refined[V1, P1], U1, Refined[V2, P2], U2] {
-        def convert(v: Refined[V1, P1], cu: ConvertableUnits[U1, U2]): Refined[V2, P2] = {
-          val v2 = ct2.fromType[Rational](cf1.toType[Rational](v.value) * cu.coef)
-          v2.toRefined[P2]
-        }
-      }
-  }
 }
 
 package object refined extends coulomb.refined.infra.CoulombRefinedP1 {
@@ -85,6 +74,7 @@ package object refined extends coulomb.refined.infra.CoulombRefinedP1 {
           EnableUnsoundRefinedConversions {}
     }
   }
+  import policy._
 
   case class CoulombRefinedException(msg: String) extends Exception(msg)
 
@@ -128,8 +118,8 @@ package object refined extends coulomb.refined.infra.CoulombRefinedP1 {
     }
 
   implicit def refinedPosMulMonoid[V](implicit
-      vv: Validate[V, Positive],
       noMG: NoImplicit[MultiplicativeGroup[V]],
+      vv: Validate[V, Positive],
       gv: MultiplicativeMonoid[V]): MultiplicativeMonoid[Refined[V, Positive]] =
     new MultiplicativeMonoid[Refined[V, Positive]] {
       val one: Refined[V, Positive] = gv.one.toRefined[Positive]
@@ -138,8 +128,8 @@ package object refined extends coulomb.refined.infra.CoulombRefinedP1 {
     }
 
   implicit def refinedNonNegMulMonoid[V](implicit
-      vv: Validate[V, NonNegative],
       noMG: NoImplicit[MultiplicativeGroup[V]],
+      vv: Validate[V, NonNegative],
       gv: MultiplicativeMonoid[V]): MultiplicativeMonoid[Refined[V, NonNegative]] =
     new MultiplicativeMonoid[Refined[V, NonNegative]] {
       val one: Refined[V, NonNegative] = gv.one.toRefined[NonNegative]
@@ -147,36 +137,70 @@ package object refined extends coulomb.refined.infra.CoulombRefinedP1 {
         gv.times(x.value, y.value).toRefined[NonNegative]
     }
 
-  implicit def refinedPosPosPolicy[V1, U1, V2, U2](implicit
+  implicit def refinedPosTD[V](implicit
+      noMG: NoImplicit[MultiplicativeGroup[V]],
+      vv: Validate[V, Positive],
+      td: TruncatedDivision[V]): TruncatedDivision[Refined[V, Positive]] =
+    new TruncatedDivision[Refined[V, Positive]] {
+      def toBigIntOpt(x: Refined[V, Positive]): Opt[BigInt] = Opt.empty[BigInt]
+      def compare(x: Refined[V, Positive], y: Refined[V, Positive]): Int =
+        td.compare(x.value, y.value)
+      def abs(x: Refined[V, Positive]): Refined[V, Positive] =
+        td.abs(x.value).toRefined[Positive]
+      def signum(x: Refined[V, Positive]): Int = td.signum(x.value)
+      def tquot(x: Refined[V, Positive], y: Refined[V, Positive]): Refined[V, Positive] =
+        td.tquot(x.value, y.value).toRefined[Positive]
+      def tmod(x: Refined[V, Positive], y: Refined[V, Positive]): Refined[V, Positive] =
+        td.tmod(x.value, y.value).toRefined[Positive]
+      def fquot(x: Refined[V, Positive], y: Refined[V, Positive]): Refined[V, Positive] =
+        td.fquot(x.value, y.value).toRefined[Positive]
+      def fmod(x: Refined[V, Positive], y: Refined[V, Positive]): Refined[V, Positive] =
+        td.fmod(x.value, y.value).toRefined[Positive]
+    }
+
+  implicit def refinedNonNegTD[V](implicit
+      noMG: NoImplicit[MultiplicativeGroup[V]],
+      vv: Validate[V, NonNegative],
+      td: TruncatedDivision[V]): TruncatedDivision[Refined[V, NonNegative]] =
+    new TruncatedDivision[Refined[V, NonNegative]] {
+      def toBigIntOpt(x: Refined[V, NonNegative]): Opt[BigInt] = Opt.empty[BigInt]
+      def compare(x: Refined[V, NonNegative], y: Refined[V, NonNegative]): Int =
+        td.compare(x.value, y.value)
+      def abs(x: Refined[V, NonNegative]): Refined[V, NonNegative] =
+        td.abs(x.value).toRefined[NonNegative]
+      def signum(x: Refined[V, NonNegative]): Int = td.signum(x.value)
+      def tquot(x: Refined[V, NonNegative], y: Refined[V, NonNegative]): Refined[V, NonNegative] =
+        td.tquot(x.value, y.value).toRefined[NonNegative]
+      def tmod(x: Refined[V, NonNegative], y: Refined[V, NonNegative]): Refined[V, NonNegative] =
+        td.tmod(x.value, y.value).toRefined[NonNegative]
+      def fquot(x: Refined[V, NonNegative], y: Refined[V, NonNegative]): Refined[V, NonNegative] =
+        td.fquot(x.value, y.value).toRefined[NonNegative]
+      def fmod(x: Refined[V, NonNegative], y: Refined[V, NonNegative]): Refined[V, NonNegative] =
+        td.fmod(x.value, y.value).toRefined[NonNegative]
+    }
+
+  implicit def refinedToRefinedSound[V1, P1, U1, V2, P2, U2](implicit
+      s12: Inference[P1, P2],
       cf1: ConvertableFrom[V1],
       ct2: ConvertableTo[V2],
-      vv2: Validate[V2, Positive]): UnitConverterPolicy[Refined[V1, Positive], U1, Refined[V2, Positive], U2] =
-    new UnitConverterPolicy[Refined[V1, Positive], U1, Refined[V2, Positive], U2] {
-      def convert(v: Refined[V1, Positive], cu: ConvertableUnits[U1, U2]): Refined[V2, Positive] = {
+      vv2: Validate[V2, P2]): UnitConverterPolicy[Refined[V1, P1], U1, Refined[V2, P2], U2] =
+    new UnitConverterPolicy[Refined[V1, P1], U1, Refined[V2, P2], U2] {
+      def convert(v: Refined[V1, P1], cu: ConvertableUnits[U1, U2]): Refined[V2, P2] = {
         val v2 = ct2.fromType[Rational](cf1.toType[Rational](v.value) * cu.coef)
-        v2.toRefined[Positive]
+        v2.toRefined[P2]
       }
     }
 
-  implicit def refinedPosNonNegPolicy[V1, U1, V2, U2](implicit
+  implicit def refinedToRefinedUnsound[V1, P1, U1, V2, P2, U2](implicit
+      enable: EnableUnsoundRefinedConversions,
+      u12: NoImplicit[Inference[P1, P2]],
       cf1: ConvertableFrom[V1],
       ct2: ConvertableTo[V2],
-      vv2: Validate[V2, NonNegative]): UnitConverterPolicy[Refined[V1, Positive], U1, Refined[V2, NonNegative], U2] =
-    new UnitConverterPolicy[Refined[V1, Positive], U1, Refined[V2, NonNegative], U2] {
-      def convert(v: Refined[V1, Positive], cu: ConvertableUnits[U1, U2]): Refined[V2, NonNegative] = {
+      vv2: Validate[V2, P2]): UnitConverterPolicy[Refined[V1, P1], U1, Refined[V2, P2], U2] =
+    new UnitConverterPolicy[Refined[V1, P1], U1, Refined[V2, P2], U2] {
+      def convert(v: Refined[V1, P1], cu: ConvertableUnits[U1, U2]): Refined[V2, P2] = {
         val v2 = ct2.fromType[Rational](cf1.toType[Rational](v.value) * cu.coef)
-        v2.toRefined[NonNegative]
-      }
-    }
-
-  implicit def refinedNonNegNonNegPolicy[V1, U1, V2, U2](implicit
-      cf1: ConvertableFrom[V1],
-      ct2: ConvertableTo[V2],
-      vv2: Validate[V2, NonNegative]): UnitConverterPolicy[Refined[V1, NonNegative], U1, Refined[V2, NonNegative], U2] =
-    new UnitConverterPolicy[Refined[V1, NonNegative], U1, Refined[V2, NonNegative], U2] {
-      def convert(v: Refined[V1, NonNegative], cu: ConvertableUnits[U1, U2]): Refined[V2, NonNegative] = {
-        val v2 = ct2.fromType[Rational](cf1.toType[Rational](v.value) * cu.coef)
-        v2.toRefined[NonNegative]
+        v2.toRefined[P2]
       }
     }
 }
