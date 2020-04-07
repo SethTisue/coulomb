@@ -40,16 +40,39 @@ package refined.infra {
 
   import enhance._
 
-  object soundcheck {
+  object soundpreds {
     trait SoundAddAlgebra[P]
     trait SoundMulAlgebra[P]
     implicit object posIsSoundAdd extends SoundAddAlgebra[Positive] {}
     implicit object nonNegIsSoundAdd extends SoundAddAlgebra[NonNegative] {}
     implicit object posIsSoundMul extends SoundMulAlgebra[Positive] {}
-    implicit object nonNegIsSoundMul extends SoundMulAlgebra[NonNegative] {}    
+    implicit object nonNegIsSoundMul extends SoundMulAlgebra[NonNegative] {}
   }
 
-  import soundcheck._
+  object soundness {
+    import soundpreds._
+
+    trait AddSoundnessPolicy[P]
+    trait MulSoundnessPolicy[P]
+
+    implicit def satisfyAddSound[P](implicit
+        ps: SoundAddAlgebra[P]): AddSoundnessPolicy[P] =
+      new AddSoundnessPolicy[P] {}
+
+    implicit def satisfyAddUnsound[P](implicit
+        enable: EnableUnsoundRefinedConversions,
+        nops: NoImplicit[SoundAddAlgebra[P]]): AddSoundnessPolicy[P] =
+      new AddSoundnessPolicy[P] {}
+
+    implicit def satisfyMulSound[P](implicit
+        ps: SoundMulAlgebra[P]): MulSoundnessPolicy[P] =
+      new MulSoundnessPolicy[P] {}
+
+    implicit def satisfyMulUnsound[P](implicit
+        enable: EnableUnsoundRefinedConversions,
+        nops: NoImplicit[SoundMulAlgebra[P]]): MulSoundnessPolicy[P] =
+      new MulSoundnessPolicy[P] {}
+  }
 
   trait CoulombRefinedP1 {
     implicit def valueToRefinedPolicy[V1, U1, V2, P2, U2](implicit
@@ -77,7 +100,7 @@ package refined.infra {
 
 package object refined extends coulomb.refined.infra.CoulombRefinedP1 {
   import coulomb.refined.infra.enhance._
-  import coulomb.refined.infra.soundcheck._
+  import coulomb.refined.infra.soundness._
 
   object policy {
     trait EnableUnsoundRefinedConversions
@@ -90,23 +113,13 @@ package object refined extends coulomb.refined.infra.CoulombRefinedP1 {
 
   case class CoulombRefinedException(msg: String) extends Exception(msg)
 
-  implicit def refinedAddSGSound[V, P](implicit
-      noAG: NoImplicit[AdditiveGroup[Refined[V, P]]],
-      ps: SoundAddAlgebra[P],
-      vv: Validate[V, P],
-      gv: AdditiveSemigroup[V]): AdditiveSemigroup[Refined[V, P]] =
-    new AdditiveSemigroup[Refined[V, P]] {
-      def plus(x: Refined[V, P], y: Refined[V, P]): Refined[V, P] =
-        gv.plus(x.value, y.value).toRefined[P]
-    }
-
   // additive group (subtraction) is unsound for all predicates
   implicit def refinedAddGroupUnsound[V, P](implicit
       enable: EnableUnsoundRefinedConversions,
       vv: Validate[V, P],
       gv: AdditiveGroup[V]): AdditiveGroup[Refined[V, P]] =
     new AdditiveGroup[Refined[V, P]] {
-      val zero: Refined[V, P] = gv.zero.toRefined[P]
+      def zero: Refined[V, P] = gv.zero.toRefined[P]
       def plus(x: Refined[V, P], y: Refined[V, P]): Refined[V, P] =
         gv.plus(x.value, y.value).toRefined[P]
       override def minus(x: Refined[V, P], y: Refined[V, P]): Refined[V, P] =
@@ -115,9 +128,31 @@ package object refined extends coulomb.refined.infra.CoulombRefinedP1 {
         gv.negate(x.value).toRefined[P]
     }
 
+  implicit def refinedAddSGSound[V, P](implicit
+      noAG: NoImplicit[AdditiveGroup[Refined[V, P]]],
+      sp: AddSoundnessPolicy[P],
+      vv: Validate[V, P],
+      gv: AdditiveSemigroup[V]): AdditiveSemigroup[Refined[V, P]] =
+    new AdditiveSemigroup[Refined[V, P]] {
+      def plus(x: Refined[V, P], y: Refined[V, P]): Refined[V, P] =
+        gv.plus(x.value, y.value).toRefined[P]
+    }
+
+  implicit def refinedMulGroupSound[V, P](implicit
+      sp: MulSoundnessPolicy[P],
+      vv: Validate[V, P],
+      gv: MultiplicativeGroup[V]): MultiplicativeGroup[Refined[V, P]] =
+    new MultiplicativeGroup[Refined[V, P]] {
+      def one: Refined[V, P] = gv.one.toRefined[P]
+      def times(x: Refined[V, P], y: Refined[V, P]): Refined[V, P] =
+        gv.times(x.value, y.value).toRefined[P]
+      def div(x: Refined[V, P], y: Refined[V, P]): Refined[V, P] =
+        gv.div(x.value, y.value).toRefined[P]
+    }
+
   implicit def refinedMulSGSound[V, P](implicit
       noMG: NoImplicit[MultiplicativeGroup[Refined[V, P]]],
-      ps: SoundMulAlgebra[P],
+      sp: MulSoundnessPolicy[P],
       vv: Validate[V, P],
       gv: MultiplicativeSemigroup[V]): MultiplicativeSemigroup[Refined[V, P]] =
     new MultiplicativeSemigroup[Refined[V, P]] {
@@ -125,21 +160,9 @@ package object refined extends coulomb.refined.infra.CoulombRefinedP1 {
         gv.times(x.value, y.value).toRefined[P]
     }
 
-  implicit def refinedMulGroupSound[V, P](implicit
-      ps: SoundMulAlgebra[P],
-      vv: Validate[V, P],
-      gv: MultiplicativeGroup[V]): MultiplicativeGroup[Refined[V, P]] =
-    new MultiplicativeGroup[Refined[V, P]] {
-      val one: Refined[V, P] = gv.one.toRefined[P]
-      def times(x: Refined[V, P], y: Refined[V, P]): Refined[V, P] =
-        gv.times(x.value, y.value).toRefined[P]
-      def div(x: Refined[V, P], y: Refined[V, P]): Refined[V, P] =
-        gv.div(x.value, y.value).toRefined[P]
-    }
-
   implicit def refinedTDSound[V, P](implicit
       noMG: NoImplicit[MultiplicativeGroup[Refined[V, P]]],
-      ps: SoundMulAlgebra[P],
+      sp: MulSoundnessPolicy[P],
       vv: Validate[V, P],
       td: TruncatedDivision[V]): TruncatedDivision[Refined[V, P]] =
     new TruncatedDivision[Refined[V, P]] {
