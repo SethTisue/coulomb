@@ -40,6 +40,17 @@ package refined.infra {
 
   import enhance._
 
+  object soundcheck {
+    trait SoundAddAlgebra[P]
+    trait SoundMulAlgebra[P]
+    implicit object posIsSoundAdd extends SoundAddAlgebra[Positive] {}
+    implicit object nonNegIsSoundAdd extends SoundAddAlgebra[NonNegative] {}
+    implicit object posIsSoundMul extends SoundMulAlgebra[Positive] {}
+    implicit object nonNegIsSoundMul extends SoundMulAlgebra[NonNegative] {}    
+  }
+
+  import soundcheck._
+
   trait CoulombRefinedP1 {
     implicit def valueToRefinedPolicy[V1, U1, V2, P2, U2](implicit
         enable: EnableUnsoundRefinedConversions,
@@ -66,6 +77,7 @@ package refined.infra {
 
 package object refined extends coulomb.refined.infra.CoulombRefinedP1 {
   import coulomb.refined.infra.enhance._
+  import coulomb.refined.infra.soundcheck._
 
   object policy {
     trait EnableUnsoundRefinedConversions
@@ -78,105 +90,71 @@ package object refined extends coulomb.refined.infra.CoulombRefinedP1 {
 
   case class CoulombRefinedException(msg: String) extends Exception(msg)
 
-  implicit def refinedPosAdd[V](implicit
-      vv: Validate[V, Positive],
-      gv: AdditiveSemigroup[V]): AdditiveSemigroup[Refined[V, Positive]] =
-    new AdditiveSemigroup[Refined[V, Positive]] {
-      def plus(x: Refined[V, Positive], y: Refined[V, Positive]): Refined[V, Positive] =
-        gv.plus(x.value, y.value).toRefined[Positive]
+  implicit def refinedAddSGSound[V, P](implicit
+      noAG: NoImplicit[AdditiveGroup[Refined[V, P]]],
+      ps: SoundAddAlgebra[P],
+      vv: Validate[V, P],
+      gv: AdditiveSemigroup[V]): AdditiveSemigroup[Refined[V, P]] =
+    new AdditiveSemigroup[Refined[V, P]] {
+      def plus(x: Refined[V, P], y: Refined[V, P]): Refined[V, P] =
+        gv.plus(x.value, y.value).toRefined[P]
     }
 
-  implicit def refinedNonNegAdd[V](implicit
-      vv: Validate[V, NonNegative],
-      gv: AdditiveMonoid[V]): AdditiveMonoid[Refined[V, NonNegative]] =
-    new AdditiveMonoid[Refined[V, NonNegative]] {
-      val zero: Refined[V, NonNegative] = gv.zero.toRefined[NonNegative]
-      def plus(x: Refined[V, NonNegative], y: Refined[V, NonNegative]): Refined[V, NonNegative] =
-        gv.plus(x.value, y.value).toRefined[NonNegative]
+  // additive group (subtraction) is unsound for all predicates
+  implicit def refinedAddGroupUnsound[V, P](implicit
+      enable: EnableUnsoundRefinedConversions,
+      vv: Validate[V, P],
+      gv: AdditiveGroup[V]): AdditiveGroup[Refined[V, P]] =
+    new AdditiveGroup[Refined[V, P]] {
+      val zero: Refined[V, P] = gv.zero.toRefined[P]
+      def plus(x: Refined[V, P], y: Refined[V, P]): Refined[V, P] =
+        gv.plus(x.value, y.value).toRefined[P]
+      override def minus(x: Refined[V, P], y: Refined[V, P]): Refined[V, P] =
+        gv.minus(x.value, y.value).toRefined[P]
+      def negate(x: Refined[V, P]): Refined[V, P] =
+        gv.negate(x.value).toRefined[P]
     }
 
-  implicit def refinedPosMul[V](implicit
-      vv: Validate[V, Positive],
-      gv: MultiplicativeGroup[V]): MultiplicativeGroup[Refined[V, Positive]] =
-    new MultiplicativeGroup[Refined[V, Positive]] {
-      val one: Refined[V, Positive] = gv.one.toRefined[Positive]
-      def times(x: Refined[V, Positive], y: Refined[V, Positive]): Refined[V, Positive] =
-        gv.times(x.value, y.value).toRefined[Positive]
-      def div(x: Refined[V, Positive], y: Refined[V, Positive]): Refined[V, Positive] =
-        gv.div(x.value, y.value).toRefined[Positive]
+  implicit def refinedMulSGSound[V, P](implicit
+      noMG: NoImplicit[MultiplicativeGroup[Refined[V, P]]],
+      ps: SoundMulAlgebra[P],
+      vv: Validate[V, P],
+      gv: MultiplicativeSemigroup[V]): MultiplicativeSemigroup[Refined[V, P]] =
+    new MultiplicativeSemigroup[Refined[V, P]] {
+      def times(x: Refined[V, P], y: Refined[V, P]): Refined[V, P] =
+        gv.times(x.value, y.value).toRefined[P]
     }
 
-  implicit def refinedNonNegMul[V](implicit
-      vv: Validate[V, NonNegative],
-      gv: MultiplicativeGroup[V]): MultiplicativeGroup[Refined[V, NonNegative]] =
-    new MultiplicativeGroup[Refined[V, NonNegative]] {
-      val one: Refined[V, NonNegative] = gv.one.toRefined[NonNegative]
-      def times(x: Refined[V, NonNegative], y: Refined[V, NonNegative]): Refined[V, NonNegative] =
-        gv.times(x.value, y.value).toRefined[NonNegative]
-      def div(x: Refined[V, NonNegative], y: Refined[V, NonNegative]): Refined[V, NonNegative] =
-        gv.div(x.value, y.value).toRefined[NonNegative]
+  implicit def refinedMulGroupSound[V, P](implicit
+      ps: SoundMulAlgebra[P],
+      vv: Validate[V, P],
+      gv: MultiplicativeGroup[V]): MultiplicativeGroup[Refined[V, P]] =
+    new MultiplicativeGroup[Refined[V, P]] {
+      val one: Refined[V, P] = gv.one.toRefined[P]
+      def times(x: Refined[V, P], y: Refined[V, P]): Refined[V, P] =
+        gv.times(x.value, y.value).toRefined[P]
+      def div(x: Refined[V, P], y: Refined[V, P]): Refined[V, P] =
+        gv.div(x.value, y.value).toRefined[P]
     }
 
-  implicit def refinedPosMulMonoid[V](implicit
-      noMG: NoImplicit[MultiplicativeGroup[V]],
-      vv: Validate[V, Positive],
-      gv: MultiplicativeMonoid[V]): MultiplicativeMonoid[Refined[V, Positive]] =
-    new MultiplicativeMonoid[Refined[V, Positive]] {
-      val one: Refined[V, Positive] = gv.one.toRefined[Positive]
-      def times(x: Refined[V, Positive], y: Refined[V, Positive]): Refined[V, Positive] =
-        gv.times(x.value, y.value).toRefined[Positive]
-    }
-
-  implicit def refinedNonNegMulMonoid[V](implicit
-      noMG: NoImplicit[MultiplicativeGroup[V]],
-      vv: Validate[V, NonNegative],
-      gv: MultiplicativeMonoid[V]): MultiplicativeMonoid[Refined[V, NonNegative]] =
-    new MultiplicativeMonoid[Refined[V, NonNegative]] {
-      val one: Refined[V, NonNegative] = gv.one.toRefined[NonNegative]
-      def times(x: Refined[V, NonNegative], y: Refined[V, NonNegative]): Refined[V, NonNegative] =
-        gv.times(x.value, y.value).toRefined[NonNegative]
-    }
-
-  implicit def refinedPosTD[V](implicit
-      noMG: NoImplicit[MultiplicativeGroup[V]],
-      vv: Validate[V, Positive],
-      td: TruncatedDivision[V]): TruncatedDivision[Refined[V, Positive]] =
-    new TruncatedDivision[Refined[V, Positive]] {
-      def toBigIntOpt(x: Refined[V, Positive]): Opt[BigInt] = Opt.empty[BigInt]
-      def compare(x: Refined[V, Positive], y: Refined[V, Positive]): Int =
-        td.compare(x.value, y.value)
-      def abs(x: Refined[V, Positive]): Refined[V, Positive] =
-        td.abs(x.value).toRefined[Positive]
-      def signum(x: Refined[V, Positive]): Int = td.signum(x.value)
-      def tquot(x: Refined[V, Positive], y: Refined[V, Positive]): Refined[V, Positive] =
-        td.tquot(x.value, y.value).toRefined[Positive]
-      def tmod(x: Refined[V, Positive], y: Refined[V, Positive]): Refined[V, Positive] =
-        td.tmod(x.value, y.value).toRefined[Positive]
-      def fquot(x: Refined[V, Positive], y: Refined[V, Positive]): Refined[V, Positive] =
-        td.fquot(x.value, y.value).toRefined[Positive]
-      def fmod(x: Refined[V, Positive], y: Refined[V, Positive]): Refined[V, Positive] =
-        td.fmod(x.value, y.value).toRefined[Positive]
-    }
-
-  implicit def refinedNonNegTD[V](implicit
-      noMG: NoImplicit[MultiplicativeGroup[V]],
-      vv: Validate[V, NonNegative],
-      td: TruncatedDivision[V]): TruncatedDivision[Refined[V, NonNegative]] =
-    new TruncatedDivision[Refined[V, NonNegative]] {
-      def toBigIntOpt(x: Refined[V, NonNegative]): Opt[BigInt] = Opt.empty[BigInt]
-      def compare(x: Refined[V, NonNegative], y: Refined[V, NonNegative]): Int =
-        td.compare(x.value, y.value)
-      def abs(x: Refined[V, NonNegative]): Refined[V, NonNegative] =
-        td.abs(x.value).toRefined[NonNegative]
-      def signum(x: Refined[V, NonNegative]): Int = td.signum(x.value)
-      def tquot(x: Refined[V, NonNegative], y: Refined[V, NonNegative]): Refined[V, NonNegative] =
-        td.tquot(x.value, y.value).toRefined[NonNegative]
-      def tmod(x: Refined[V, NonNegative], y: Refined[V, NonNegative]): Refined[V, NonNegative] =
-        td.tmod(x.value, y.value).toRefined[NonNegative]
-      def fquot(x: Refined[V, NonNegative], y: Refined[V, NonNegative]): Refined[V, NonNegative] =
-        td.fquot(x.value, y.value).toRefined[NonNegative]
-      def fmod(x: Refined[V, NonNegative], y: Refined[V, NonNegative]): Refined[V, NonNegative] =
-        td.fmod(x.value, y.value).toRefined[NonNegative]
+  implicit def refinedTDSound[V, P](implicit
+      noMG: NoImplicit[MultiplicativeGroup[Refined[V, P]]],
+      ps: SoundMulAlgebra[P],
+      vv: Validate[V, P],
+      td: TruncatedDivision[V]): TruncatedDivision[Refined[V, P]] =
+    new TruncatedDivision[Refined[V, P]] {
+      def toBigIntOpt(x: Refined[V, P]): Opt[BigInt] = td.toBigIntOpt(x.value)
+      def compare(x: Refined[V, P], y: Refined[V, P]): Int = td.compare(x.value, y.value)
+      def abs(x: Refined[V, P]): Refined[V, P] = td.abs(x.value).toRefined[P]
+      def signum(x: Refined[V, P]): Int = td.signum(x.value)
+      def tquot(x: Refined[V, P], y: Refined[V, P]): Refined[V, P] =
+        td.tquot(x.value, y.value).toRefined[P]
+      def tmod(x: Refined[V, P], y: Refined[V, P]): Refined[V, P] =
+        td.tmod(x.value, y.value).toRefined[P]
+      def fquot(x: Refined[V, P], y: Refined[V, P]): Refined[V, P] =
+        td.fquot(x.value, y.value).toRefined[P]
+      def fmod(x: Refined[V, P], y: Refined[V, P]): Refined[V, P] =
+        td.fmod(x.value, y.value).toRefined[P]
     }
 
   implicit def refinedToRefinedSound[V1, P1, U1, V2, P2, U2](implicit
